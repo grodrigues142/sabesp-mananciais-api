@@ -93,28 +93,24 @@
   function validateDateEntry(date) {
     var re = new RegExp('^[0-9]{4}(0[1-9]|1[0-2])(0[1-9]|[1-2][0-9]|3[0-1])$');
 
-    // Valid string length
-    if (date.length !== 10 || date.length !== 8) {
-      return false;
-    }
-
     if (date.length === 10) {
       date = date.split('-').join('');
     }
 
-    if (re.test(date)) {
-      var limit = new Date('2003-01-01'),
-        y = date.slice(0, 4),
-        m = date.slice(4, -2),
-        d = date.slice(6),
-        request = new Date(y + '-' + m + '-' + d);
-
-      if (request < limit) {
-        return false;
-      }
-
-      return {year: y, month: m, day: d};
+    if (!re.test(date)) {
+      return false;
     }
+    var limit = new Date('2003-01-01'),
+      y = date.slice(0, 4),
+      m = date.slice(4, -2),
+      d = date.slice(6),
+      request = new Date(y + '-' + m + '-' + d);
+
+    if (request < limit) {
+      return false;
+    }
+
+    return {year: y, month: m, day: d};
   }
 
   // Default URL - Data from today
