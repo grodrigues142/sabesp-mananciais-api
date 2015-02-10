@@ -11,6 +11,8 @@
 
   // Our Sabesp url
   var url = 'http://www2.sabesp.com.br/mananciais/DivulgacaoSiteSabesp.aspx';
+  var date;
+  var validation;
 
   // TODO: Improve this mess
   function getSistemaName(name) {
@@ -32,7 +34,7 @@
     }
   }
 
-  function getData(html) {
+  function scrap(html, date) {
     var $ = cheerio.load(html);
 
     var json = [];
@@ -86,48 +88,79 @@
       });
 
     });
-
     return json;
   }
 
   function validateDateEntry(date) {
-    var re = new RegExp('^[0-9]{4}(0[1-9]|1[0-2])(0[1-9]|[1-2][0-9]|3[0-1])$');
+    var re = new RegExp('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$');
 
-    if (date.length === 10) {
-      date = date.split('-').join('');
-    }
+    var limit = new Date('2003-01-01');
 
-    if (!re.test(date)) {
+    if (!re.test(date) || new Date(date) < limit) {
       return false;
     }
-    var limit = new Date('2003-01-01'),
-      y = date.slice(0, 4),
-      m = date.slice(4, -2),
-      d = date.slice(6),
-      request = new Date(y + '-' + m + '-' + d);
-
-    if (request < limit) {
-      return false;
-    }
+    var y = date.slice(0, 4),
+      m = date.slice(5, -3),
+      d = date.slice(8);
 
     return {year: y, month: m, day: d};
   }
 
+  function getValidation(html, date) {
+    var data = cheerio.load(html);
+
+    return {
+      '__VIEWSTATE': data('#__VIEWSTATE').val(),
+      '__EVENTVALIDATION': data('#__EVENTVALIDATION').val(),
+      'Imagebutton1.x': 8,
+      'Imagebutton1.y': 6,
+      'cmbDia': date.day,
+      'cmbMes': date.month,
+      'cmbAno': date.year
+    };
+  }
+
+
   // Default URL - Data from today
   app.get('/', function (req, res) {
-
     request(url, function (error, response, html) {
       if (!error) {
-        res.json(getData(html));
+        res.json(scrap(html));
       }
     });
   });
 
   // Date URL - Data from some date (2015/01/06)
   app.get('/:date', function (req, res) {
-    console.log(req.params.date.length);
-    console.log(validateDateEntry(req.params.date));
-    res.send(req.params.date);
+
+    date = validateDateEntry(req.params.date);
+
+    request(url, function (error, response, html) {
+      if (!error) {
+        validation = getValidation(html, date);
+      }
+    });
+    if (validation) {
+      request({
+        url: url,
+        method: 'POST',
+        headers: {
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*-/*;q=0.8',
+          'Host': 'www2.sabesp.com.br',
+          'Origin': 'http://www2.sabesp.com.br',
+          'Referer': url,
+          'User-Agent': 'Mozilla/5.0 (X11; Linux i686) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/30.0.1599.114 Safari/537.36'
+        },
+        jar: true,
+        form: validation
+      }, function (error, response, html) {
+        if (!error) {
+          res.json(scrap(html));
+        }
+      });
+    } else {
+      res.json({error: 'Something happens!'});
+    }
   });
 
   app.listen(app.get('port'), function () {
